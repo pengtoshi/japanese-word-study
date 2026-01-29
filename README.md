@@ -1,4 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Japanese Helper (MVP)
+
+개인용 일본어 작문 연습 앱입니다.
+
+### 로컬 실행
+
+1. 환경변수 파일 생성
+
+```bash
+cp .env.example .env.local
+```
+
+2. `.env.local`에 아래 값을 채우기
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `OPENAI_API_KEY`
+  - (선택) `OPENAI_MODEL_GENERATE`, `OPENAI_MODEL_GRADE`, `OPENAI_MODEL_AUTOFILL` 등
+
+3. 실행
+
+```bash
+npm run dev
+```
+
+### Supabase DB 스키마 적용
+
+- Supabase Dashboard → SQL Editor → New query
+- `supabase/schema.sql` 내용을 붙여넣고 실행
+
+### 주의(보안)
+
+- `.env.local`은 Git에 커밋하지 마세요.
+- API Key/DB 비밀번호는 절대 채팅/이슈/PR 등에 올리지 마세요.
 
 ## Getting Started
 

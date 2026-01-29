@@ -1,8 +1,26 @@
 @import "tailwindcss";
 
+/* Mobile safe-area helpers (iOS notch, etc.) */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+
+:root {
+  /* Airbnb-ish light palette */
+  --background: #f7f7f7;
+  --foreground: #222222;
+  --muted: #717171;
+  --surface: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+
+  /* Accent (Airbnb-ish) */
+  --accent: #ff385c;
+  --accent-foreground: #ffffff;
+
+  /* Shadows */
+  --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.12);
 }
 
 @theme inline {
@@ -14,13 +32,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0b0b0b;
+    --foreground: #f2f2f2;
+    --muted: rgba(242, 242, 242, 0.68);
+    --surface: #161616;
+    --border: rgba(255, 255, 255, 0.12);
+    --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.45);
   }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans", sans-serif;
 }
