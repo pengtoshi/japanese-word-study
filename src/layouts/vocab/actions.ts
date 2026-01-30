@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { DEFAULT_JLPT_LEVEL, type JlptLevel } from "@/lib/jlpt";
+import { createScenarioVocabListInDb } from "@/lib/scenario-vocab";
 import type { VocabItemCreateActionState } from "@/components/vocab/types";
 
 const CreateListSchema = z.object({
@@ -43,6 +45,74 @@ export async function createVocabListAction(formData: FormData) {
 
   revalidatePath("/app/vocab");
   redirect("/app/vocab");
+}
+
+const ScenarioCreateSchema = z.object({
+  scenarioPrompt: z
+    .string()
+    .trim()
+    .min(3, "상황 프롬프트를 3자 이상 입력해주세요.")
+    .max(800, "상황 프롬프트는 최대 800자까지 입력할 수 있어요."),
+  problemCount: z
+    .coerce
+    .number()
+    .int()
+    .min(1, "문제 개수는 1 이상이어야 해요.")
+    .max(50, "문제 개수는 최대 50개까지 가능해요."),
+});
+
+export async function createScenarioVocabListAction(formData: FormData) {
+  "use server";
+
+  const raw = {
+    scenarioPrompt: String(formData.get("scenarioPrompt") ?? ""),
+    problemCount: String(formData.get("problemCount") ?? "10"),
+  };
+  const parsed = ScenarioCreateSchema.safeParse(raw);
+  if (!parsed.success) {
+    redirect(
+      `/app/vocab?error=${encodeURIComponent(
+        parsed.error.issues[0]?.message ?? "입력값이 올바르지 않아요."
+      )}#scenario-create`
+    );
+  }
+
+  const scenarioPrompt = parsed.data.scenarioPrompt;
+  const problemCount = parsed.data.problemCount;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+  if (!user) redirect("/login");
+
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("jlpt_level")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const jlptLevel = (settings?.jlpt_level ?? DEFAULT_JLPT_LEVEL) as JlptLevel;
+
+  try {
+    const { listId, sessionId } = await createScenarioVocabListInDb({
+      supabase,
+      userId: user.id,
+      scenarioPrompt,
+      problemCount,
+      jlptLevel,
+    });
+
+    revalidatePath("/app/vocab");
+    revalidatePath(`/app/vocab/${listId}`);
+    revalidatePath("/app/practice");
+    revalidatePath(`/app/practice/${sessionId}`);
+
+    redirect(`/app/vocab/${listId}?createdSessionId=${sessionId}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "알 수 없는 오류";
+    redirect(
+      `/app/vocab?error=${encodeURIComponent(`상황별 단어장 만들기 실패: ${msg}`)}#scenario-create`
+    );
+  }
 }
 
 /**
@@ -90,12 +160,6 @@ const CreateItemSchema = z.object({
     .trim()
     .min(1, "일본어 원문(표기)을 입력해주세요.")
     .max(200, "최대 200자까지 입력할 수 있어요."),
-  jaReadingHira: z
-    .string()
-    .trim()
-    .max(200, "최대 200자까지 입력할 수 있어요.")
-    .optional()
-    .transform((v) => (v && v.length > 0 ? v : undefined)),
   koMeaning: z
     .string()
     .trim()
@@ -118,7 +182,6 @@ export async function createVocabItemAction(
 
   const raw = {
     jaSurface: String(formData.get("jaSurface") ?? ""),
-    jaReadingHira: String(formData.get("jaReadingHira") ?? ""),
     koMeaning: String(formData.get("koMeaning") ?? ""),
     memo: String(formData.get("memo") ?? ""),
   };
@@ -158,7 +221,8 @@ export async function createVocabItemAction(
     user_id: user.id,
     list_id: listId,
     ja_surface: parsed.data.jaSurface,
-    ja_reading_hira: parsed.data.jaReadingHira ?? null,
+    // 최종 목표: DB에 후리가나 저장하지 않음 (UI에서 kuroshiro로 표시)
+    ja_reading_hira: null,
     ko_meaning: parsed.data.koMeaning,
     memo: parsed.data.memo ?? null,
     is_active: true,
@@ -233,6 +297,16 @@ export async function startPracticeFromListAction(listId: string) {
   const user = userData.user;
   if (!user) redirect("/login");
 
+  const { data: listRow } = await supabase
+    .from("vocab_lists")
+    .select("id, kind, scenario_prompt")
+    .eq("id", listId)
+    .maybeSingle();
+  const listKind = listRow?.kind ? String(listRow.kind) : "manual";
+  const listScenarioPrompt = listRow?.scenario_prompt
+    ? String(listRow.scenario_prompt)
+    : null;
+
   const { data: settings } = await supabase
     .from("user_settings")
     .select("jlpt_level")
@@ -275,6 +349,7 @@ export async function startPracticeFromListAction(listId: string) {
       list_id: listId,
       problem_count: 10,
       jlpt_level: jlptLevel,
+      scenario_prompt: listKind === "scenario" ? listScenarioPrompt : null,
     })
     .select("id")
     .single();
@@ -288,8 +363,10 @@ export async function startPracticeFromListAction(listId: string) {
   }
 
   const cookieStore = await cookies();
+  const generatePath =
+    listKind === "scenario" ? "/api/practice/generate-scenario" : "/api/practice/generate";
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/practice/generate`,
+    `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}${generatePath}`,
     {
       method: "POST",
       headers: {

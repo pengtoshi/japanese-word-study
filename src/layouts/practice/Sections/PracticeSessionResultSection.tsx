@@ -6,17 +6,40 @@ export type PracticeSessionResultData = {
   userAnswerJa: string;
 };
 
+function RubyBlock({
+  html,
+  text,
+}: {
+  html?: string | null;
+  text: string;
+}) {
+  return html ? (
+    <div
+      className="mt-1 whitespace-pre-wrap text-sm leading-7 [&_rt]:text-xs [&_rt]:text-(--muted)"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  ) : (
+    <div className="mt-1 whitespace-pre-wrap text-sm leading-7">{text}</div>
+  );
+}
+
 export function PracticeSessionResultSection({
   result,
   modelAnswerJa,
+  modelAnswerRubyHtml,
   altAnswerJa,
+  altAnswerRubyHtml,
+  userAnswerRubyHtml,
   nextHref,
   nextLabel = "다음 문제로",
   redoHref,
 }: {
   result: PracticeSessionResultData;
   modelAnswerJa: string;
+  modelAnswerRubyHtml?: string | null;
   altAnswerJa?: string | null;
+  altAnswerRubyHtml?: string | null;
+  userAnswerRubyHtml?: string | null;
   nextHref: string;
   nextLabel?: string;
   redoHref: string;
@@ -29,16 +52,16 @@ export function PracticeSessionResultSection({
       <div className="mt-4 space-y-2">
         <div>
           <div className="text-xs font-semibold text-zinc-600">내 답안</div>
-          <div className="mt-1 whitespace-pre-wrap text-sm">{result.userAnswerJa}</div>
+          <RubyBlock html={userAnswerRubyHtml} text={result.userAnswerJa} />
         </div>
         <div>
           <div className="text-xs font-semibold text-zinc-600">모범 답안</div>
-          <div className="mt-1 whitespace-pre-wrap text-sm">{modelAnswerJa}</div>
+          <RubyBlock html={modelAnswerRubyHtml} text={modelAnswerJa} />
         </div>
         {altAnswerJa ? (
           <div>
             <div className="text-xs font-semibold text-zinc-600">대안</div>
-            <div className="mt-1 whitespace-pre-wrap text-sm">{altAnswerJa}</div>
+            <RubyBlock html={altAnswerRubyHtml} text={altAnswerJa} />
           </div>
         ) : null}
       </div>

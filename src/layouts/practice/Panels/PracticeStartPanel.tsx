@@ -36,11 +36,22 @@ async function startPracticeAction(formData: FormData) {
     | "n4"
     | "n5";
 
+  const { data: listRow } = await supabase
+    .from("vocab_lists")
+    .select("id, kind, scenario_prompt")
+    .eq("id", parsed.data.listId)
+    .maybeSingle();
+  const listKind = listRow?.kind ? String(listRow.kind) : "manual";
+  const listScenarioPrompt = listRow?.scenario_prompt
+    ? String(listRow.scenario_prompt)
+    : null;
+
   const { count: itemCount, error: itemCountError } = await supabase
     .from("vocab_items")
     .select("id", { count: "exact", head: true })
     .eq("list_id", parsed.data.listId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .eq("user_id", user.id);
 
   if (itemCountError) {
     redirect(
@@ -65,6 +76,7 @@ async function startPracticeAction(formData: FormData) {
       list_id: parsed.data.listId,
       problem_count: 10,
       jlpt_level: jlptLevel,
+      scenario_prompt: listKind === "scenario" ? listScenarioPrompt : null,
     })
     .select("id")
     .single();
@@ -78,8 +90,10 @@ async function startPracticeAction(formData: FormData) {
   }
 
   const cookieStore = await cookies();
+  const generatePath =
+    listKind === "scenario" ? "/api/practice/generate-scenario" : "/api/practice/generate";
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/practice/generate`,
+    `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}${generatePath}`,
     {
       method: "POST",
       headers: {

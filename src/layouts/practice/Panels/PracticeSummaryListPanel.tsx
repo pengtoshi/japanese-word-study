@@ -8,6 +8,7 @@ export type PracticeSummaryProblemRow = {
   id: string;
   promptKo: string;
   modelAnswerJa: string;
+  modelAnswerRubyHtml?: string | null;
 };
 
 export type PracticeSummaryAttemptRow = {
@@ -66,9 +67,16 @@ export function PracticeSummaryListPanel({
                 <div className="line-clamp-2 whitespace-pre-wrap text-sm text-zinc-700">
                   {p.promptKo}
                 </div>
-                <div className="line-clamp-2 whitespace-pre-wrap text-sm text-zinc-600">
-                  {p.modelAnswerJa}
-                </div>
+                {p.modelAnswerRubyHtml ? (
+                  <div
+                    className="line-clamp-2 whitespace-pre-wrap text-sm text-zinc-600 leading-7 [&_rt]:text-xs [&_rt]:text-(--muted)"
+                    dangerouslySetInnerHTML={{ __html: p.modelAnswerRubyHtml }}
+                  />
+                ) : (
+                  <div className="line-clamp-2 whitespace-pre-wrap text-sm text-zinc-600">
+                    {p.modelAnswerJa}
+                  </div>
+                )}
               </div>
             </Link>
           );

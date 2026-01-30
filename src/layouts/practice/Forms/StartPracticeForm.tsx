@@ -1,10 +1,25 @@
 "use client";
 
 import * as React from "react";
+import { useFormStatus } from "react-dom";
 
 import { BottomSheetSelect } from "@/components/BottomSheetSelect";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { JlptPill } from "@/components/JlptPill";
+import { PendingModal } from "@/components/PendingModal";
+
+function PracticePendingModal() {
+  const { pending } = useFormStatus();
+  return (
+    <PendingModal
+      open={pending}
+      srTitle="연습문제 생성 중"
+      title="연습문제 생성 중"
+      description="잠시만 기다려주세요…"
+      footer="선택한 단어장으로 연습문제 10개를 만들고 있어요."
+    />
+  );
+}
 
 export function StartPracticeForm({
   lists,
@@ -39,6 +54,8 @@ export function StartPracticeForm({
           문제 10개 생성하고 시작
         </FormSubmitButton>
       </div>
+
+      <PracticePendingModal />
     </form>
   );
 }

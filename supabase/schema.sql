@@ -10,12 +10,39 @@ create extension if not exists pgcrypto;
 -- Tables
 -- =========================================
 
+-- vocab list kind (manual vs scenario-generated)
+do $$
+begin
+  create type public.vocab_list_kind as enum ('manual', 'scenario');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists public.vocab_lists (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
+  kind public.vocab_list_kind not null default 'manual',
+  scenario_prompt text null,
   created_at timestamptz not null default now()
 );
+
+-- vocab_lists: add columns for existing DBs
+do $$
+begin
+  alter table public.vocab_lists
+    add column kind public.vocab_list_kind not null default 'manual';
+exception
+  when duplicate_column then null;
+end $$;
+
+do $$
+begin
+  alter table public.vocab_lists
+    add column scenario_prompt text null;
+exception
+  when duplicate_column then null;
+end $$;
 
 -- Needed for composite foreign keys (id, user_id)
 do $$
@@ -69,10 +96,20 @@ create table if not exists public.practice_sessions (
   user_id uuid not null references auth.users (id) on delete cascade,
   list_id uuid not null references public.vocab_lists (id) on delete cascade,
   problem_count int not null default 10,
+  scenario_prompt text null,
   created_at timestamptz not null default now(),
 
   constraint practice_sessions_problem_count_check check (problem_count > 0 and problem_count <= 50)
 );
+
+-- practice_sessions: add columns for existing DBs
+do $$
+begin
+  alter table public.practice_sessions
+    add column scenario_prompt text null;
+exception
+  when duplicate_column then null;
+end $$;
 
 -- Needed for composite foreign keys (id, user_id)
 do $$

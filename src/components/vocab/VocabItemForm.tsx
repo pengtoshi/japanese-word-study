@@ -75,7 +75,6 @@ export function VocabItemForm({
   beforeFields?: React.ReactNode;
 }) {
   const [jaSurface, setJaSurface] = useState("");
-  const [jaReadingHira, setJaReadingHira] = useState("");
   const [koMeaning, setKoMeaning] = useState("");
   const [memo, setMemo] = useState("");
 
@@ -99,7 +98,6 @@ export function VocabItemForm({
 
     if (submitState.status === "success") {
       setJaSurface("");
-      setJaReadingHira("");
       setKoMeaning("");
       setMemo("");
       setAiError(null);
@@ -128,13 +126,9 @@ export function VocabItemForm({
 
       const data = (await res.json()) as {
         koMeaning: string;
-        jaReadingHira?: string;
       };
 
       setKoMeaning(data.koMeaning ?? "");
-      if (typeof data.jaReadingHira === "string") {
-        setJaReadingHira(data.jaReadingHira);
-      }
     } catch (e) {
       setAiError(e instanceof Error ? e.message : "자동 생성에 실패했어요.");
     } finally {
@@ -213,16 +207,6 @@ export function VocabItemForm({
             </div>
           </div>
         </label>
-
-        <LabeledInput
-          label="후리가나(히라가나)"
-          name="jaReadingHira"
-          placeholder="예: しめきり"
-          maxLength={200}
-          value={jaReadingHira}
-          onChange={(e) => setJaReadingHira(e.target.value)}
-          disabled={isGenerating}
-        />
       </div>
 
       <LabeledInput

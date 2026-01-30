@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +21,7 @@ type Props = {
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 export function AccountMenu({ email, initialJlptLevel }: Props) {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [jlptLevel, setJlptLevel] = useState<JlptLevel>(
     initialJlptLevel ?? DEFAULT_JLPT_LEVEL
@@ -60,6 +62,8 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
 
       setSaveState("saved");
       toast({ type: "success", title: "난이도 저장됨", description: jlptLabel(next) });
+      // 서버 컴포넌트(예: /app/practice)의 jlptLevel 표시를 즉시 갱신
+      router.refresh();
       window.setTimeout(() => setSaveState("idle"), 1200);
     } catch (e) {
       setSaveState("error");
@@ -78,9 +82,9 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
         className={cn(
           "list-none",
           "inline-flex h-10 w-10 items-center justify-center rounded-full",
-          "border border-[color:var(--border)] bg-[color:var(--surface)]",
-          "shadow-[var(--shadow-card)]",
-          "text-sm font-semibold text-[color:var(--foreground)]",
+          "border border-(--border) bg-(--surface)",
+          "shadow-(--shadow-card)",
+          "text-sm font-semibold text-foreground",
           "hover:bg-black/5 dark:hover:bg-white/10"
         )}
         aria-label="계정 메뉴"
@@ -91,12 +95,12 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
       <div
         className={cn(
           "absolute right-0 mt-2 w-72 overflow-hidden rounded-2xl",
-          "border border-[color:var(--border)] bg-[color:var(--surface)]",
-          "shadow-[var(--shadow-float)]"
+          "border border-(--border) bg-(--surface)",
+          "shadow-(--shadow-float)"
         )}
       >
         <div className="px-4 py-3">
-          <div className="text-xs font-semibold text-[color:var(--muted)]">
+          <div className="text-xs font-semibold text-(--muted)">
             계정
           </div>
           <div className="mt-1 truncate text-sm font-semibold">
@@ -104,10 +108,10 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
           </div>
         </div>
 
-        <div className="h-px bg-[color:var(--border)]" />
+        <div className="h-px bg-(--border)" />
 
         <div className="px-4 py-3">
-          <div className="text-xs font-semibold text-[color:var(--muted)]">
+          <div className="text-xs font-semibold text-(--muted)">
             연습 난이도
           </div>
           <div className="mt-2">
@@ -124,7 +128,7 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
           </div>
 
           {saveState === "saving" ? (
-            <div className="mt-2 text-xs text-[color:var(--muted)]">저장 중...</div>
+            <div className="mt-2 text-xs text-(--muted)">저장 중...</div>
           ) : null}
           {saveState === "error" ? (
             <div className="mt-2 text-xs text-red-700">
@@ -133,14 +137,14 @@ export function AccountMenu({ email, initialJlptLevel }: Props) {
           ) : null}
         </div>
 
-        <div className="h-px bg-[color:var(--border)]" />
+        <div className="h-px bg-(--border)" />
 
         <form action="/auth/signout" method="post" className="p-2">
           <button
             type="submit"
             className={cn(
               "inline-flex h-11 w-full items-center justify-center rounded-xl",
-              "border border-[color:var(--border)] bg-[color:var(--surface)]",
+              "border border-(--border) bg-(--surface)",
               "text-sm font-semibold text-red-700 hover:bg-red-50"
             )}
           >

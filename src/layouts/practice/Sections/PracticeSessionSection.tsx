@@ -1,5 +1,6 @@
 import { Alert } from "@/components/ui/Alert";
 import { safeDecodeURIComponent } from "@/utils/format";
+import { toRubyHtml } from "@/lib/kuroshiro-server";
 
 import { PracticeManualGradeForm } from "@/layouts/practice/Forms/PracticeManualGradeForm";
 import { PracticeSessionEmptySection } from "@/layouts/practice/Sections/PracticeSessionEmptySection";
@@ -30,7 +31,7 @@ type AttemptRow = {
   created_at: string;
 };
 
-export function PracticeSessionSection({
+export async function PracticeSessionSection({
   sessionId,
   errorParam,
   problemsErrorMessage,
@@ -161,6 +162,14 @@ export function PracticeSessionSection({
     ? { verdict: lastAttempt.verdict, userAnswerJa: lastAttempt.user_answer_ja }
     : null;
 
+  const modelAnswerRubyHtml = currentProblem
+    ? await toRubyHtml(currentProblem.model_answer_ja)
+    : null;
+  const altAnswerRubyHtml =
+    currentProblem?.alt_answer_ja ? await toRubyHtml(currentProblem.alt_answer_ja) : null;
+  const userAnswerRubyHtml =
+    shouldShowResult && resultData ? await toRubyHtml(resultData.userAnswerJa) : null;
+
   const apiBaseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   return (
@@ -197,7 +206,9 @@ export function PracticeSessionSection({
               problemId={currentProblem.id}
               nextHref={nextHref}
               modelAnswerJa={currentProblem.model_answer_ja}
+              modelAnswerRubyHtml={modelAnswerRubyHtml}
               altAnswerJa={currentProblem.alt_answer_ja}
+              altAnswerRubyHtml={altAnswerRubyHtml}
             />
           ) : null}
 
@@ -205,7 +216,10 @@ export function PracticeSessionSection({
             <PracticeSessionResultSection
               result={resultData}
               modelAnswerJa={currentProblem.model_answer_ja}
+              modelAnswerRubyHtml={modelAnswerRubyHtml}
               altAnswerJa={currentProblem.alt_answer_ja}
+              altAnswerRubyHtml={altAnswerRubyHtml}
+              userAnswerRubyHtml={userAnswerRubyHtml}
               nextHref={nextHref}
               nextLabel={isWrongMode ? "다음 오답" : "다음 문제로"}
               redoHref={redoHref}

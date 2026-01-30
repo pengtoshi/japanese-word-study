@@ -14,13 +14,17 @@ export function PracticeManualGradeForm({
   problemId,
   nextHref,
   modelAnswerJa,
+  modelAnswerRubyHtml,
   altAnswerJa,
+  altAnswerRubyHtml,
 }: {
   apiBaseUrl: string;
   problemId: string;
   nextHref: string;
   modelAnswerJa: string;
+  modelAnswerRubyHtml?: string | null;
   altAnswerJa?: string | null;
+  altAnswerRubyHtml?: string | null;
 }) {
   const router = useRouter();
   const [userAnswerJa, setUserAnswerJa] = useState("");
@@ -92,16 +96,30 @@ export function PracticeManualGradeForm({
               </div>
               <div>
                 <div className="text-xs font-semibold text-zinc-600">답</div>
-                <div className="mt-1 whitespace-pre-wrap text-sm">
-                  {modelAnswerJa}
-                </div>
+                {modelAnswerRubyHtml ? (
+                  <div
+                    className="mt-1 whitespace-pre-wrap text-sm leading-7 [&_rt]:text-xs [&_rt]:text-(--muted)"
+                    dangerouslySetInnerHTML={{ __html: modelAnswerRubyHtml }}
+                  />
+                ) : (
+                  <div className="mt-1 whitespace-pre-wrap text-sm leading-7">
+                    {modelAnswerJa}
+                  </div>
+                )}
               </div>
               {altAnswerJa ? (
                 <div>
                   <div className="text-xs font-semibold text-zinc-600">대안</div>
-                  <div className="mt-1 whitespace-pre-wrap text-sm">
-                    {altAnswerJa}
-                  </div>
+                  {altAnswerRubyHtml ? (
+                    <div
+                      className="mt-1 whitespace-pre-wrap text-sm leading-7 [&_rt]:text-xs [&_rt]:text-(--muted)"
+                      dangerouslySetInnerHTML={{ __html: altAnswerRubyHtml }}
+                    />
+                  ) : (
+                    <div className="mt-1 whitespace-pre-wrap text-sm leading-7">
+                      {altAnswerJa}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

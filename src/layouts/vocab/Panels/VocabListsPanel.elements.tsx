@@ -11,6 +11,7 @@ import { formatDateTimeKo } from "@/utils/format";
 export type VocabListRow = {
   id: string;
   name: string;
+  kind?: "manual" | "scenario" | null;
   created_at: string;
 };
 
@@ -135,6 +136,13 @@ export function VocabListsPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{l.name}</div>
+                    {l.kind === "scenario" ? (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center rounded-full bg-(--accent)/10 px-2 py-0.5 text-[11px] font-semibold text-[color:var(--accent)]">
+                          상황별 단어장
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="mt-1 text-xs text-(--muted)">
                       생성: {formatDateTimeKo(l.created_at)}
                     </div>

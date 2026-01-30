@@ -1,32 +1,17 @@
-function env(name: string) {
-  return process.env[name]?.trim();
-}
+/**
+ * OpenAI 모델 설정은 `.env.local`이 아니라 코드 상수로 고정합니다.
+ * (요청: OPENAI_MODEL_* env 의존 제거)
+ */
+export const OPENAI_MODELS = {
+  generate: { model: "gpt-5-mini", fallbackModel: "gpt-5-mini" },
+  grade: {
+    model: "gpt-5-nano",
+    fallbackModel: "gpt-5-mini",
+    fallbackOnNeedsFix: true,
+  },
+  autofill: { model: "gpt-5-nano", fallbackModel: "gpt-5-mini" },
+} as const;
 
 export function getOpenAiModels() {
-  const generateModel = env("OPENAI_MODEL_GENERATE") || "gpt-5-mini";
-  const generateFallbackModel =
-    env("OPENAI_MODEL_GENERATE_FALLBACK") || "gpt-5-mini";
-
-  const gradeModel = env("OPENAI_MODEL_GRADE") || "gpt-5-nano";
-  const gradeFallbackModel = env("OPENAI_MODEL_GRADE_FALLBACK") || "gpt-5-mini";
-
-  // Autofill (vocab auto-complete) defaults to grading model for low cost,
-  // with optional override via env vars.
-  const autofillModel = env("OPENAI_MODEL_AUTOFILL") || gradeModel;
-  const autofillFallbackModel =
-    env("OPENAI_MODEL_AUTOFILL_FALLBACK") || gradeFallbackModel;
-
-  const gradeFallbackOnNeedsFix =
-    (env("OPENAI_GRADE_FALLBACK_ON_NEEDS_FIX") || "true").toLowerCase() ===
-    "true";
-
-  return {
-    generate: { model: generateModel, fallbackModel: generateFallbackModel },
-    autofill: { model: autofillModel, fallbackModel: autofillFallbackModel },
-    grade: {
-      model: gradeModel,
-      fallbackModel: gradeFallbackModel,
-      fallbackOnNeedsFix: gradeFallbackOnNeedsFix,
-    },
-  };
+  return OPENAI_MODELS;
 }

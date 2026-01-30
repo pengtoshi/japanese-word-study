@@ -8,12 +8,10 @@ const BodySchema = z.object({
   sessionId: z.uuid(),
 });
 
-// NOTE: LLM outputs are not always stable (camelCase vs snake_case, ids vs surfaces, etc).
-// We accept a wider shape here, then normalize/validate before insert.
+// Scenario mode: keep output minimal & stable
 const RawProblemSchema = z.looseObject({
   promptKo: z.string().min(1).optional(),
   prompt_ko: z.string().min(1).optional(),
-  // common alternative keys from LLMs
   prompt: z.string().min(1).optional(),
   targetItemIds: z.array(z.union([z.string(), z.number()])).optional(),
   target_item_ids: z.array(z.union([z.string(), z.number()])).optional(),
@@ -23,10 +21,6 @@ const RawProblemSchema = z.looseObject({
   model_answer_ja: z.string().min(1).optional(),
   modelAnswer: z.string().min(1).optional(),
   model_answer: z.string().min(1).optional(),
-  altAnswerJa: z.string().min(1).optional(),
-  alt_answer_ja: z.string().min(1).optional(),
-  altAnswer: z.string().min(1).optional(),
-  alt_answer: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -49,7 +43,7 @@ export async function POST(request: Request) {
 
     const { data: session, error: sessionError } = await supabase
       .from("practice_sessions")
-      .select("id, list_id, problem_count, jlpt_level")
+      .select("id, list_id, problem_count, jlpt_level, scenario_prompt")
       .eq("id", parsed.data.sessionId)
       .single();
 
@@ -59,7 +53,15 @@ export async function POST(request: Request) {
       });
     }
 
-    // Load active vocab items for the list
+    const scenarioPrompt = session.scenario_prompt
+      ? String(session.scenario_prompt)
+      : "";
+    if (!scenarioPrompt) {
+      return new NextResponse("이 세션은 상황별 단어장 세션이 아닙니다.", {
+        status: 400,
+      });
+    }
+
     const { data: items, error: itemsError } = await supabase
       .from("vocab_items")
       .select("id, ja_surface, ja_reading_hira, ko_meaning, memo, is_active")
@@ -86,18 +88,22 @@ export async function POST(request: Request) {
     });
 
     const system = [
-      "You generate Korean prompts for Japanese writing practice.",
-      "Rules:",
-      "- Output MUST be valid JSON matching the provided schema.",
-      `- Create exactly ${problemCount} problems.`,
-      "- Each problem must select 1-3 target item IDs from the provided list.",
-      "- Do NOT force unrelated items into the same sentence; keep it natural and realistic.",
-      "- Prompts should be natural Korean sentences one might actually say.",
-      "- Model answers should be natural Japanese that includes the chosen target expressions.",
-      `- Target difficulty: ${jlptLabel}. Keep grammar/vocabulary/naturalness appropriate for that level.`,
-      "- IMPORTANT: For target ids, use the provided 'id' strings exactly (UUIDs). Do not invent new ids.",
-      '- Use these exact JSON keys per problem: promptKo, targetItemIds, modelAnswerJa, altAnswerJa(optional).',
-      'Example JSON: {"problems":[{"promptKo":"...","targetItemIds":["<uuid>"],"modelAnswerJa":"...","altAnswerJa":"..."}]}',
+      "당신은 '상황별 단어장' 전용 일본어 작문 연습문제를 생성합니다.",
+      "규칙:",
+      "- 출력은 반드시 제공된 스키마를 만족하는 '유효한 JSON'이어야 합니다.",
+      `- 문제는 정확히 ${problemCount}개 생성하세요.`,
+      "- 각 문제는 제공된 단어(id) 중 1~3개를 선택해 자연스럽게 사용해야 합니다.",
+      "- 서로 무관한 단어를 억지로 한 문장에 넣지 마세요.",
+      "- 프롬프트(promptKo)는 실제로 말할 법한 한국어 문장이어야 합니다.",
+      "- 모범답안(modelAnswerJa)은 자연스러운 일본어여야 하고, 선택한 표현을 반드시 포함해야 합니다.",
+      `- 난이도는 ${jlptLabel} 수준을 목표로 합니다.`,
+      "- IMPORTANT: target ids는 제공된 uuid를 그대로 사용해야 합니다(새로 만들면 안 됨).",
+      "- 마크다운/설명/코멘트는 절대 포함하지 말고, JSON만 출력하세요.",
+      '- 각 문제는 반드시 다음 키를 사용하세요: promptKo, targetItemIds, modelAnswerJa.',
+      '예시 JSON: {"problems":[{"promptKo":"...","targetItemIds":["<uuid>"],"modelAnswerJa":"..."}]}',
+      "",
+      "상황(반드시 반영):",
+      scenarioPrompt,
     ].join("\n");
 
     const userPrompt = JSON.stringify(
@@ -129,36 +135,22 @@ export async function POST(request: Request) {
       validatedData = await run(generate.model);
     } catch (e) {
       if (generate.fallbackModel && generate.fallbackModel !== generate.model) {
-        try {
-          validatedData = await run(generate.fallbackModel);
-        } catch {
-          const msg = e instanceof Error ? e.message : "OpenAI error";
-          return new NextResponse(msg, { status: 502 });
-        }
+        validatedData = await run(generate.fallbackModel);
       } else {
-        const msg = e instanceof Error ? e.message : "OpenAI error";
-        return new NextResponse(msg, { status: 502 });
+        throw e;
       }
     }
 
-    // Normalize to the exact count we want.
     const slice = validatedData.problems.slice(0, problemCount);
 
-    const idBySurface = new Map<string, string>();
     const idSet = new Set<string>();
-    for (const it of items) {
-      idSet.add(it.id);
-      idBySurface.set(it.ja_surface, it.id);
-    }
+    for (const it of items) idSet.add(String(it.id));
 
     function normalizeTargetIds(raw: unknown): string[] {
       const arr = Array.isArray(raw) ? raw : [];
       const mapped = arr
         .map((v) => String(v).trim())
-        .map((v) => (idSet.has(v) ? v : idBySurface.get(v) ?? v))
         .filter((v) => idSet.has(v));
-
-      // unique, max 3
       const uniq: string[] = [];
       for (const v of mapped) {
         if (!uniq.includes(v)) uniq.push(v);
@@ -167,52 +159,26 @@ export async function POST(request: Request) {
       return uniq;
     }
 
-    function pickFallbackTargetIds(): string[] {
-      const ids = Array.from(idSet);
-      const first = ids[0];
-      return first ? [first] : [];
-    }
-
     const normalized = slice.map((p) => {
       const promptKo = p.promptKo ?? p.prompt_ko ?? p.prompt ?? "";
       const modelAnswerJa =
         p.modelAnswerJa ?? p.model_answer_ja ?? p.modelAnswer ?? p.model_answer ?? "";
-      const altAnswerJa =
-        p.altAnswerJa ?? p.alt_answer_ja ?? p.altAnswer ?? p.alt_answer ?? undefined;
       const rawTargets =
         p.targetItemIds ?? p.target_item_ids ?? p.targetIds ?? p.target_ids ?? [];
       const targetItemIds = normalizeTargetIds(rawTargets);
-
       return {
         promptKo: String(promptKo).trim(),
         modelAnswerJa: String(modelAnswerJa).trim(),
-        altAnswerJa: altAnswerJa ? String(altAnswerJa).trim() : undefined,
-        targetItemIds:
-          targetItemIds.length > 0 ? targetItemIds : pickFallbackTargetIds(),
+        targetItemIds,
       };
     });
 
-    // Final sanity check (avoid DB errors + preserve UX)
     for (const p of normalized) {
-      if (!p.promptKo || !p.modelAnswerJa) {
+      if (!p.promptKo || !p.modelAnswerJa || p.targetItemIds.length < 1) {
         const details = debugRaw
           ? ` details=${clip(
               JSON.stringify({
-                reason: "missing promptKo/modelAnswerJa after normalization",
-                normalizedPreview: normalized.slice(0, 3),
-                rawPreview: slice.slice(0, 3),
-              })
-            )}`
-          : "";
-        return new NextResponse(`OpenAI response schema mismatch.${details}`, {
-          status: 502,
-        });
-      }
-      if (!p.targetItemIds || p.targetItemIds.length < 1) {
-        const details = debugRaw
-          ? ` details=${clip(
-              JSON.stringify({
-                reason: "missing targetItemIds after normalization",
+                reason: "missing fields after normalization",
                 normalizedPreview: normalized.slice(0, 3),
                 rawPreview: slice.slice(0, 3),
               })
@@ -224,14 +190,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Insert problems
     const payload = normalized.map((p) => ({
       user_id: user.id,
       session_id: session.id,
       prompt_ko: p.promptKo,
       target_item_ids: p.targetItemIds,
       model_answer_ja: p.modelAnswerJa,
-      alt_answer_ja: p.altAnswerJa ?? null,
+      alt_answer_ja: null,
     }));
 
     const { error: insertError } = await supabase
@@ -246,3 +211,4 @@ export async function POST(request: Request) {
     return new NextResponse(msg, { status: 500 });
   }
 }
+

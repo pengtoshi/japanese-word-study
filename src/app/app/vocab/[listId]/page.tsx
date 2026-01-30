@@ -2,29 +2,36 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/Card";
-import { Alert } from "@/components/ui/Alert";
-import { safeDecodeURIComponent } from "@/utils/format";
 import { TopBarConfig } from "@/components/TopBarProvider";
 import type { VocabItemRow } from "@/components/vocab/types";
 import { VocabItemAddSheet } from "@/components/vocab/VocabItemAddSheet";
 import { VocabItemsPanel } from "@/layouts/vocab/Panels/VocabItemsPanel.elements";
 import { VocabListDetailAlertsSection } from "@/layouts/vocab/Sections/VocabListDetailAlertsSection";
-import { VocabQuickStartPanel } from "@/layouts/vocab/Panels/VocabQuickStartPanel";
+import { toRubyHtml } from "@/lib/kuroshiro-server";
 import {
   createVocabItemAction,
   deleteVocabItemsAction,
   startPracticeFromListAction,
 } from "@/layouts/vocab/actions";
+import { ChevronRightIcon } from "lucide-react";
+
+type VocabListRow = {
+  id: string;
+  name: string;
+  created_at: string;
+  kind?: "manual" | "scenario" | null;
+  scenario_prompt?: string | null;
+};
 
 export default async function VocabListDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ listId: string }>;
-  searchParams: Promise<{ error?: string; q?: string }>;
+  searchParams: Promise<{ error?: string; q?: string; createdSessionId?: string }>;
 }) {
   const { listId } = await params;
-  const { error: errorParam, q } = await searchParams;
+  const { error: errorParam, q, createdSessionId } = await searchParams;
   const query = (q ?? "").trim();
 
   const supabase = await createSupabaseServerClient();
@@ -37,16 +44,11 @@ export default async function VocabListDetailPage({
     .select("jlpt_level")
     .eq("user_id", userId)
     .maybeSingle();
-  const jlptLevel = (settings?.jlpt_level ?? "n3") as
-    | "n1"
-    | "n2"
-    | "n3"
-    | "n4"
-    | "n5";
+  void settings;
 
   const { data: list, error: listError } = await supabase
     .from("vocab_lists")
-    .select("id, name, created_at")
+    .select("id, name, kind, scenario_prompt, created_at")
     .eq("id", listId)
     .maybeSingle();
 
@@ -113,47 +115,82 @@ export default async function VocabListDetailPage({
       )
     : await itemsQuery;
 
+  const typedList = list as unknown as VocabListRow;
+  const isScenarioList = String(typedList.kind ?? "") === "scenario";
+  void typedList;
+
   const totalActiveCount = activeCount ?? 0;
-  const itemRows: VocabItemRow[] = (items ?? []).map((it) => ({
-    id: String(it.id),
-    ja_surface: String(it.ja_surface),
-    ja_reading_hira: it.ja_reading_hira ? String(it.ja_reading_hira) : null,
-    ko_meaning: it.ko_meaning ? String(it.ko_meaning) : null,
-    memo: it.memo ? String(it.memo) : null,
-    is_active: Boolean(it.is_active),
-  }));
+  const itemRows: VocabItemRow[] = await Promise.all(
+    (items ?? []).map(async (it) => {
+      const jaSurface = String(it.ja_surface);
+      return {
+        id: String(it.id),
+        ja_surface: jaSurface,
+        // keep existing column for non-scenario lists; scenario lists should not rely on it
+        ja_reading_hira: it.ja_reading_hira ? String(it.ja_reading_hira) : null,
+        // Prefer ruby rendering everywhere (final goal: do not rely on ja_reading_hira)
+        ja_surface_ruby_html: await toRubyHtml(jaSurface),
+        ko_meaning: it.ko_meaning ? String(it.ko_meaning) : null,
+        memo: it.memo ? String(it.memo) : null,
+        is_active: Boolean(it.is_active),
+      };
+    })
+  );
+
+  let scenarioSessionId: string | null = createdSessionId ?? null;
+  if (isScenarioList && !scenarioSessionId) {
+    const { data: latestScenarioSession } = await supabase
+      .from("practice_sessions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("list_id", listId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    scenarioSessionId = latestScenarioSession?.id
+      ? String(latestScenarioSession.id)
+      : null;
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-28">
       <TopBarConfig title={list.name} backHref="/app/vocab" />
 
-      {/* 빠른 시작 */}
-      <VocabQuickStartPanel
-        listId={listId}
-        jlptLevel={jlptLevel}
-        totalActiveCount={totalActiveCount}
-        startPracticeAction={startPracticeFromListAction.bind(null, listId)}
-      />
+      <div className="space-y-3">
+        {/* 바로 연습 시작 (상황별 단어장 + 기존 세션 존재) */}
+        {isScenarioList && scenarioSessionId ? (
+          <Link
+            href={`/app/practice/${encodeURIComponent(scenarioSessionId)}`}
+            className="inline-flex h-14 w-full items-center justify-between rounded-2xl bg-(--accent) px-5 text-base font-semibold text-white shadow-(--shadow-card) hover:bg-rose-600"
+          >
+            바로 연습 시작
+            <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+          </Link>
+        ) : null}
+
+        {/* 새 연습 만들기 / 빠른 시작 */}
+        <form action={startPracticeFromListAction.bind(null, listId)}>
+          <button
+            type="submit"
+            disabled={totalActiveCount < 10}
+            className={[
+              "inline-flex h-14 w-full items-center justify-between rounded-2xl px-5 text-base font-semibold shadow-(--shadow-card) transition-colors",
+              isScenarioList && scenarioSessionId
+                ? "border border-(--border) bg-(--surface) text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                : "bg-(--accent) text-white hover:bg-rose-600",
+              totalActiveCount < 10 ? "pointer-events-none opacity-60" : "",
+            ].join(" ")}
+          >
+            {isScenarioList && scenarioSessionId ? "새 연습 문제 만들기" : "연습 시작"}
+            <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </form>
+      </div>
 
       <VocabListDetailAlertsSection
         errorParam={errorParam}
         itemsErrorMessage={itemsError?.message ?? null}
       />
-
-      {/* 표현 추가 */}
-      <Card id="add" className="scroll-mt-24">
-        <div className="text-base font-semibold">표현 추가</div>
-
-        <div className="mt-4">
-          <VocabItemAddSheet
-            mode="fixed"
-            fixedListId={listId}
-            action={createVocabItemAction.bind(null, listId)}
-            triggerClassName="w-full !rounded-2xl !justify-between !px-4"
-            triggerLabel="표현 추가"
-          />
-        </div>
-      </Card>
 
       {/* 단어 리스트 + 검색 */}
       <Card>
@@ -165,11 +202,20 @@ export default async function VocabListDetailPage({
           emptyMessage={
             query
               ? "검색 결과가 없어요. 다른 키워드로 검색해보세요."
-              : "아직 저장된 표현이 없어요. 위에서 하나 추가해보자."
+              : "아직 저장된 표현이 없어요. 표현을 추가해보세요."
           }
           deleteManyAction={deleteVocabItemsAction.bind(null, listId)}
         />
       </Card>
+
+      {/* Floating: 표현 추가 */}
+      <VocabItemAddSheet
+        mode="fixed"
+        fixedListId={listId}
+        action={createVocabItemAction.bind(null, listId)}
+        triggerClassName="fixed bottom-24 right-4 z-40"
+        triggerLabel="표현 추가"
+      />
     </div>
   );
 }

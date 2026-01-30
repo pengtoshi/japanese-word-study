@@ -10,12 +10,7 @@ const BodySchema = z.object({
 
 const ResponseSchema = z.object({
   koMeaning: z.string().trim().min(1).max(400),
-  jaReadingHira: z.string().trim().min(1).max(200).optional(),
 });
-
-function hasKanji(text: string) {
-  return /[\u4E00-\u9FFF]/.test(text);
-}
 
 export async function POST(request: Request) {
   try {
@@ -28,7 +23,6 @@ export async function POST(request: Request) {
     if (!parsed.success) return new NextResponse("Invalid body", { status: 400 });
 
     const surface = parsed.data.jaSurface;
-    const needReading = hasKanji(surface);
 
     const { autofill } = getOpenAiModels();
 
@@ -37,14 +31,11 @@ export async function POST(request: Request) {
       "Return JSON only.",
       "Rules:",
       "- koMeaning: concise Korean meaning (not a full sentence).",
-      needReading
-        ? "- jaReadingHira: full reading in hiragana for the entire jaSurface."
-        : "- Do NOT include jaReadingHira.",
       "- Keep it short and practical.",
       "- If the input is a phrase with symbols like 〜, keep them; reading should correspond naturally.",
     ].join("\n");
 
-    const userPrompt = JSON.stringify({ jaSurface: surface, needReading });
+    const userPrompt = JSON.stringify({ jaSurface: surface });
 
     async function run(model: string) {
       const validated = await chatJson({
@@ -56,9 +47,6 @@ export async function POST(request: Request) {
         ],
       });
 
-      if (!needReading) {
-        return { koMeaning: validated.koMeaning };
-      }
       return validated;
     }
 
@@ -68,7 +56,7 @@ export async function POST(request: Request) {
     } catch (e) {
       if (
         autofill.fallbackModel &&
-        autofill.fallbackModel !== autofill.model
+        String(autofill.fallbackModel) !== String(autofill.model)
       ) {
         try {
           const result = await run(autofill.fallbackModel);

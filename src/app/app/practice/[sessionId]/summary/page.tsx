@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { TopBarConfig } from "@/components/TopBarProvider";
 import { PracticeSummaryHeaderSection } from "@/layouts/practice/Sections/PracticeSummaryHeaderSection";
 import { PracticeSummaryErrorSection } from "@/layouts/practice/Sections/PracticeSummaryErrorSection";
+import { toRubyHtml } from "@/lib/kuroshiro-server";
 import {
   PracticeSummaryListPanel,
   type PracticeSummaryAttemptRow,
@@ -46,11 +47,17 @@ export default async function PracticeSummaryPage({
     );
   }
 
-  const problemRows: PracticeSummaryProblemRow[] = (problems ?? []).map((p) => ({
-    id: String(p.id),
-    promptKo: String(p.prompt_ko),
-    modelAnswerJa: String(p.model_answer_ja),
-  }));
+  const problemRows: PracticeSummaryProblemRow[] = await Promise.all(
+    (problems ?? []).map(async (p) => {
+      const model = String(p.model_answer_ja);
+      return {
+        id: String(p.id),
+        promptKo: String(p.prompt_ko),
+        modelAnswerJa: model,
+        modelAnswerRubyHtml: await toRubyHtml(model),
+      };
+    })
+  );
 
   const problemIds = problemRows.map((p) => p.id);
   const { data: attempts } = problemIds.length

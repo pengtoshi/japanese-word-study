@@ -2,10 +2,43 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Check, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Asterisk, Check, Eye, EyeOff, Info, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VocabItemSearch } from "@/layouts/vocab/Sections/VocabItemSearch";
 import type { VocabItemRow } from "@/components/vocab/types";
+
+function IconToggleButton({
+  pressed,
+  onPressedChange,
+  label,
+  children,
+}: {
+  pressed: boolean;
+  onPressedChange: (next: boolean) => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={pressed}
+      title={label}
+      onClick={() => onPressedChange(!pressed)}
+      className={cn(
+        "inline-flex h-10 w-10 items-center justify-center rounded-xl",
+        "bg-transparent",
+        "transition-colors",
+        pressed ? "text-(--accent)" : "text-(--muted) hover:text-foreground",
+        pressed
+          ? "bg-(--accent)/10"
+          : "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function VocabItemsPanel({
   listId,
@@ -28,6 +61,11 @@ export function VocabItemsPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [stagedIds, setStagedIds] = useState<Set<string>>(new Set());
 
+  // 표시 기준 토글 (기본: 모두 표시 ON)
+  const [showFurigana, setShowFurigana] = useState(true);
+  const [showKo, setShowKo] = useState(true);
+  const [showJa, setShowJa] = useState(true);
+
   const returnTo = useMemo(() => {
     const qs = searchParams?.toString() ?? "";
     return qs ? `${pathname}?${qs}` : pathname;
@@ -40,96 +78,139 @@ export function VocabItemsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">표현 목록</h2>
-        </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-0.5">
+              <h2 className="text-base font-semibold">표현 목록</h2>
+              <div className="mt-1 text-xs text-(--muted) sm:hidden">
+                {totalActiveCount}/100
+              </div>
+            </div>
 
-        <div className="shrink-0 flex items-center gap-1.5">
-          <div
-            className={cn(
-              "rounded-full border border-(--border) bg-(--surface) px-3 py-1",
-              "text-xs font-semibold text-(--muted)"
-            )}
-            aria-label="표현 개수"
-          >
-            {totalActiveCount}/100
-          </div>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {!isEditing ? (
+                <>
+                  <IconToggleButton
+                    pressed={showFurigana}
+                    onPressedChange={setShowFurigana}
+                    label={showFurigana ? "후리가나 표시" : "후리가나 숨김"}
+                  >
+                    <Asterisk className="h-5 w-5" aria-hidden="true" />
+                  </IconToggleButton>
+                  <IconToggleButton
+                    pressed={showKo}
+                    onPressedChange={setShowKo}
+                    label={showKo ? "한국어 표시" : "한국어 숨김"}
+                  >
+                    <Info className="h-5 w-5" aria-hidden="true" />
+                  </IconToggleButton>
+                  <IconToggleButton
+                    pressed={showJa}
+                    onPressedChange={setShowJa}
+                    label={showJa ? "일본어 표시" : "일본어 숨김"}
+                  >
+                    {showJa ? (
+                      <Eye className="h-5 w-5" aria-hidden="true" />
+                    ) : (
+                      <EyeOff className="h-5 w-5" aria-hidden="true" />
+                    )}
+                  </IconToggleButton>
+                </>
+              ) : null}
 
-          {items.length > 0 ? (
-            isEditing ? (
-              <>
-                <button
-                  type="button"
-                  aria-label="되돌리기"
-                  onClick={() => {
-                    setStagedIds(new Set());
-                    setIsEditing(false);
-                  }}
-                  className={cn(
-                    "inline-flex h-10 w-10 items-center justify-center rounded-full",
-                    "bg-transparent",
-                    "text-(--muted) hover:text-foreground",
-                    "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
-                  )}
-                >
-                  <RotateCcw className="h-5 w-5" aria-hidden="true" />
-                </button>
+              <div
+                className={cn(
+                  "hidden sm:inline-flex h-10 items-center rounded-full",
+                  "bg-black/5 px-3 text-xs font-semibold text-(--muted)",
+                  "dark:bg-white/10"
+                )}
+                aria-label="표현 개수"
+              >
+                {totalActiveCount}/100
+              </div>
 
-                {stagedIds.size > 0 ? (
-                  <form action={deleteManyAction}>
-                    {[...stagedIds].map((id) => (
-                      <input key={id} type="hidden" name="itemId" value={id} />
-                    ))}
-                    <input type="hidden" name="returnTo" value={returnTo} />
+              {items.length > 0 ? (
+                isEditing ? (
+                  <>
                     <button
-                      type="submit"
-                      aria-label="삭제 적용"
+                      type="button"
+                      aria-label="되돌리기"
+                      onClick={() => {
+                        setStagedIds(new Set());
+                        setIsEditing(false);
+                      }}
                       className={cn(
-                        "inline-flex h-10 w-10 items-center justify-center rounded-full",
+                        "inline-flex h-10 w-10 items-center justify-center rounded-xl",
                         "bg-transparent",
                         "text-(--muted) hover:text-foreground",
                         "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
                       )}
                     >
-                      <Check className="h-5 w-5" aria-hidden="true" />
+                      <RotateCcw className="h-5 w-5" aria-hidden="true" />
                     </button>
-                  </form>
+
+                    {stagedIds.size > 0 ? (
+                      <form action={deleteManyAction}>
+                        {[...stagedIds].map((id) => (
+                          <input
+                            key={id}
+                            type="hidden"
+                            name="itemId"
+                            value={id}
+                          />
+                        ))}
+                        <input type="hidden" name="returnTo" value={returnTo} />
+                        <button
+                          type="submit"
+                          aria-label="삭제 적용"
+                          className={cn(
+                            "inline-flex h-10 w-10 items-center justify-center rounded-xl",
+                            "bg-transparent",
+                            "text-(--muted) hover:text-foreground",
+                            "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
+                          )}
+                        >
+                          <Check className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label="편집 종료"
+                        onClick={() => setIsEditing(false)}
+                        className={cn(
+                          "inline-flex h-10 w-10 items-center justify-center rounded-xl",
+                          "bg-transparent",
+                          "text-(--muted) hover:text-foreground",
+                          "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
+                        )}
+                      >
+                        <Check className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <button
                     type="button"
-                    aria-label="편집 종료"
-                    onClick={() => setIsEditing(false)}
+                    aria-label="편집"
+                    onClick={() => {
+                      setStagedIds(new Set());
+                      setIsEditing(true);
+                    }}
                     className={cn(
-                      "inline-flex h-10 w-10 items-center justify-center rounded-full",
+                      "inline-flex h-10 w-10 items-center justify-center rounded-xl",
                       "bg-transparent",
                       "text-(--muted) hover:text-foreground",
                       "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
                     )}
                   >
-                    <Check className="h-5 w-5" aria-hidden="true" />
+                    <Pencil className="h-5 w-5" aria-hidden="true" />
                   </button>
-                )}
-              </>
-            ) : (
-              <button
-                type="button"
-                aria-label="편집"
-                onClick={() => {
-                  setStagedIds(new Set());
-                  setIsEditing(true);
-                }}
-                className={cn(
-                  "inline-flex h-10 w-10 items-center justify-center rounded-full",
-                  "bg-transparent",
-                  "text-(--muted) hover:text-foreground",
-                  "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
-                )}
-              >
-                <Pencil className="h-5 w-5" aria-hidden="true" />
-              </button>
-            )
-          ) : null}
+                )
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -146,23 +227,39 @@ export function VocabItemsPanel({
               )}
             >
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-semibold">{it.ja_surface}</span>
-                  {it.ja_reading_hira ? (
-                    <span className="text-sm text-(--muted)">
-                      ({it.ja_reading_hira})
-                    </span>
-                  ) : null}
-                  {!it.is_active ? (
-                    <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs text-(--muted) dark:bg-white/10">
-                      비활성
-                    </span>
-                  ) : null}
-                </div>
-                {it.ko_meaning ? (
-                  <div className="mt-1 text-sm text-foreground">
-                    {it.ko_meaning}
+                {showJa ? (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {it.ja_surface_ruby_html ? (
+                      <span
+                        className={cn(
+                          "font-semibold [&_ruby]:ruby",
+                          !showFurigana
+                            ? "[&_rt]:hidden"
+                            : "[&_rt]:text-[11px] [&_rt]:text-(--muted)"
+                        )}
+                        // HTML is produced by kuroshiro (server-side).
+                        dangerouslySetInnerHTML={{ __html: it.ja_surface_ruby_html }}
+                      />
+                    ) : (
+                      <>
+                        <span className="font-semibold">{it.ja_surface}</span>
+                        {it.ja_reading_hira && showFurigana ? (
+                          <span className="text-sm text-(--muted)">
+                            ({it.ja_reading_hira})
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                    {!it.is_active ? (
+                      <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs text-(--muted) dark:bg-white/10">
+                        비활성
+                      </span>
+                    ) : null}
                   </div>
+                ) : null}
+
+                {it.ko_meaning && showKo ? (
+                  <div className="mt-1 text-sm text-foreground">{it.ko_meaning}</div>
                 ) : null}
                 {it.memo ? (
                   <div className="mt-1 whitespace-pre-wrap text-xs text-(--muted)">
