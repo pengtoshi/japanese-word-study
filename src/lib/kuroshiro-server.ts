@@ -1,6 +1,7 @@
 import "server-only";
 
 import path from "node:path";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 
 import Kuroshiro from "kuroshiro";
@@ -31,6 +32,22 @@ async function getKuroshiro() {
         } catch {
           // Last resort: use process.cwd() + node_modules (may not work in serverless).
           dictPath = path.resolve(process.cwd(), "node_modules", "kuromoji", "dict");
+        }
+      }
+
+      // 만약 (rsc) 경로나 잘못된 경로로 인해 dict 파일이 없으면,
+      // 실제 node_modules 경로로 한 번 더 폴백한다.
+      const checkFile = path.join(dictPath, "check.dat.gz");
+      if (!fs.existsSync(checkFile)) {
+        const altDict = path.resolve(
+          process.cwd(),
+          "node_modules",
+          "kuromoji",
+          "dict"
+        );
+        const altCheck = path.join(altDict, "check.dat.gz");
+        if (fs.existsSync(altCheck)) {
+          dictPath = altDict;
         }
       }
       // Ensure dictPath is a valid string (not number/undefined).

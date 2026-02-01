@@ -1,8 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Asterisk, Check, Eye, EyeOff, Info, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import {
+  Asterisk,
+  Check,
+  Eye,
+  EyeOff,
+  Info,
+  Loader2,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  Volume2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VocabItemSearch } from "@/layouts/vocab/Sections/VocabItemSearch";
 import type { VocabItemRow } from "@/components/vocab/types";
@@ -65,6 +76,46 @@ export function VocabItemsPanel({
   const [showFurigana, setShowFurigana] = useState(true);
   const [showKo, setShowKo] = useState(true);
   const [showJa, setShowJa] = useState(true);
+
+  const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  async function handlePlayAudio(item: VocabItemRow) {
+    if (loadingAudioId === item.id) return;
+
+    setLoadingAudioId(item.id);
+    try {
+      const res = await fetch(`/api/tts/vocab?itemId=${encodeURIComponent(item.id)}`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("Failed to fetch TTS audio:", await res.text());
+        return;
+      }
+      const data = (await res.json()) as { url?: string };
+      if (!data.url) {
+        console.error("TTS API did not return url");
+        return;
+      }
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      const audio = new Audio(data.url);
+      audioRef.current = audio;
+      setPlayingAudioId(item.id);
+      audio.addEventListener("ended", () => {
+        setPlayingAudioId((current) => (current === item.id ? null : current));
+      });
+      await audio.play();
+    } catch (e) {
+      console.error("Failed to play TTS audio", e);
+    } finally {
+      setLoadingAudioId(null);
+    }
+  }
 
   const returnTo = useMemo(() => {
     const qs = searchParams?.toString() ?? "";
@@ -268,26 +319,54 @@ export function VocabItemsPanel({
                 ) : null}
               </div>
 
-              {isEditing ? (
-                <button
-                  type="button"
-                  aria-label="삭제 예약"
-                  onClick={() =>
-                    setStagedIds((prev) => {
-                      const next = new Set(prev);
-                      next.add(it.id);
-                      return next;
-                    })
-                  }
-                  className={cn(
-                    "inline-flex h-10 w-10 items-center justify-center rounded-full",
-                    "bg-transparent",
-                    "text-red-600 hover:bg-red-50 active:bg-red-100"
-                  )}
-                >
-                  <Trash2 className="h-5 w-5" aria-hidden="true" />
-                </button>
-              ) : null}
+              <div className="flex items-center gap-1.5">
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    aria-label="발음 듣기"
+                    onClick={() => handlePlayAudio(it)}
+                    className={cn(
+                      "inline-flex h-9 w-9 items-center justify-center rounded-full",
+                      "bg-transparent",
+                      "text-(--muted) hover:text-foreground",
+                      "hover:bg-black/5 active:bg-black/10 dark:hover:bg-white/10 dark:active:bg-white/15"
+                    )}
+                  >
+                    {loadingAudioId === it.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Volume2
+                        className={cn(
+                          "h-4 w-4",
+                          playingAudioId === it.id ? "text-(--accent)" : undefined
+                        )}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                ) : null}
+
+                {isEditing ? (
+                  <button
+                    type="button"
+                    aria-label="삭제 예약"
+                    onClick={() =>
+                      setStagedIds((prev) => {
+                        const next = new Set(prev);
+                        next.add(it.id);
+                        return next;
+                      })
+                    }
+                    className={cn(
+                      "inline-flex h-10 w-10 items-center justify-center rounded-full",
+                      "bg-transparent",
+                      "text-red-600 hover:bg-red-50 active:bg-red-100"
+                    )}
+                  >
+                    <Trash2 className="h-5 w-5" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
             </div>
           ))
         ) : (

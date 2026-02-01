@@ -10,6 +10,7 @@ export const OPENAI_MODELS = {
     fallbackOnNeedsFix: true,
   },
   autofill: { model: "gpt-5-nano", fallbackModel: "gpt-5-mini" },
+  tts: { model: "gpt-4o-mini-tts", fallbackModel: "gpt-4o-mini-tts" },
 } as const;
 
 export function getOpenAiModels() {
