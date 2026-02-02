@@ -11,7 +11,6 @@ import { toRubyHtml } from "@/lib/kuroshiro-server";
 import {
   createVocabItemAction,
   deleteVocabItemsAction,
-  startPracticeFromListAction,
 } from "@/layouts/vocab/actions";
 import { ChevronRightIcon } from "lucide-react";
 
@@ -167,24 +166,6 @@ export default async function VocabListDetailPage({
             <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
           </Link>
         ) : null}
-
-        {/* 새 연습 만들기 / 빠른 시작 */}
-        <form action={startPracticeFromListAction.bind(null, listId)}>
-          <button
-            type="submit"
-            disabled={totalActiveCount < 10}
-            className={[
-              "inline-flex h-14 w-full items-center justify-between rounded-2xl px-5 text-base font-semibold shadow-(--shadow-card) transition-colors",
-              isScenarioList && scenarioSessionId
-                ? "border border-(--border) bg-(--surface) text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                : "bg-(--accent) text-white hover:bg-rose-600",
-              totalActiveCount < 10 ? "pointer-events-none opacity-60" : "",
-            ].join(" ")}
-          >
-            {isScenarioList && scenarioSessionId ? "새 연습 문제 만들기" : "연습 시작"}
-            <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </form>
       </div>
 
       <VocabListDetailAlertsSection

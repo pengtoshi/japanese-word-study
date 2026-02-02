@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Asterisk,
   Check,
@@ -68,6 +68,7 @@ export function VocabItemsPanel({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [isEditing, setIsEditing] = useState(false);
   const [stagedIds, setStagedIds] = useState<Set<string>>(new Set());
@@ -80,6 +81,52 @@ export function VocabItemsPanel({
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Sticky header scroll detection
+  const [isScrolled, setIsScrolled] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const initialTopRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (headerRef.current) {
+        const rect = headerRef.current.getBoundingClientRect();
+        
+        // 초기 위치 저장 (스크롤이 0일 때)
+        if (initialTopRef.current === null && window.scrollY === 0) {
+          initialTopRef.current = rect.top;
+        }
+
+        const topBar = document.querySelector("header[class*='sticky']");
+        const topBarHeight = topBar
+          ? topBar.getBoundingClientRect().height
+          : 65 + parseInt(
+              getComputedStyle(document.documentElement).getPropertyValue(
+                "env(safe-area-inset-top)"
+              ) || "0"
+            );
+
+        // 요소가 sticky 위치에 있는지 확인
+        // sticky 요소의 top 값은 topBarHeight이므로, rect.top이 그 값과 비슷하면 sticky 상태
+        const expectedStickyTop = topBarHeight;
+        const tolerance = 5; // 5px 여유
+        const isStickyActive = Math.abs(rect.top - expectedStickyTop) < tolerance;
+        
+        // 스크롤이 발생했고 sticky가 활성화되었는지 확인
+        const scrolled = window.scrollY > 10 && isStickyActive;
+        setIsScrolled(scrolled);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    // 초기 상태 확인을 위해 약간의 지연
+    const timeoutId = setTimeout(handleScroll, 50);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   async function handlePlayAudio(item: VocabItemRow) {
     if (loadingAudioId === item.id) return;
@@ -129,9 +176,25 @@ export function VocabItemsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center justify-between gap-3">
+      <div
+        ref={headerRef}
+        className={cn(
+          "sticky z-30 -mx-4 pt-0 pb-0 transition-all duration-300",
+          "top-[calc(env(safe-area-inset-top)+65px)]",
+          isScrolled ? "px-0" : "px-4"
+        )}
+      >
+        <div
+          className={cn(
+            "transition-all duration-300",
+            isScrolled
+              ? "bg-(--surface) border-b border-(--border) px-4 py-3"
+              : ""
+          )}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col items-start gap-0.5">
               <h2 className="text-base font-semibold">표현 목록</h2>
               <div className="mt-1 text-xs text-(--muted) sm:hidden">
@@ -261,7 +324,9 @@ export function VocabItemsPanel({
                 )
               ) : null}
             </div>
+            </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -272,9 +337,16 @@ export function VocabItemsPanel({
           visibleItems.map((it) => (
             <div
               key={it.id}
+              onClick={() => {
+                if (!isEditing) {
+                  router.push(`/app/vocab/${listId}/${it.id}`);
+                }
+              }}
               className={cn(
                 "flex items-start justify-between gap-3 rounded-2xl border border-(--border) px-4 py-3",
-                "bg-(--surface)"
+                "bg-(--surface)",
+                !isEditing &&
+                  "cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15"
               )}
             >
               <div className="min-w-0">
@@ -324,7 +396,10 @@ export function VocabItemsPanel({
                   <button
                     type="button"
                     aria-label="발음 듣기"
-                    onClick={() => handlePlayAudio(it)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayAudio(it);
+                    }}
                     className={cn(
                       "inline-flex h-9 w-9 items-center justify-center rounded-full",
                       "bg-transparent",
@@ -350,13 +425,14 @@ export function VocabItemsPanel({
                   <button
                     type="button"
                     aria-label="삭제 예약"
-                    onClick={() =>
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setStagedIds((prev) => {
                         const next = new Set(prev);
                         next.add(it.id);
                         return next;
-                      })
-                    }
+                      });
+                    }}
                     className={cn(
                       "inline-flex h-10 w-10 items-center justify-center rounded-full",
                       "bg-transparent",
@@ -378,4 +454,3 @@ export function VocabItemsPanel({
     </div>
   );
 }
-
