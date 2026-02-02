@@ -174,7 +174,7 @@ export default async function VocabListDetailPage({
       />
 
       {/* 단어 리스트 + 검색 */}
-      <Card>
+      <Card noPadding>
         <VocabItemsPanel
           listId={listId}
           totalActiveCount={totalActiveCount}
